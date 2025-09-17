@@ -3,56 +3,42 @@ import pandas as pd
 import pickle
 
 st.set_page_config(page_title="Crime Prediction", layout="wide")
-st.title("🤖 Crime Level Prediction")
+st.title("🔮 Crime Level Prediction")
 
+# -------------------------
 # Load model & encoders
-with open("crime_prediction_model.pkl", "rb") as f:
-    model = pickle.load(f)
+# -------------------------
+try:
+    with open("crime_prediction_model.pkl", "rb") as f:
+        model = pickle.load(f)
+    with open("state_encoder.pkl", "rb") as f:
+        le_state = pickle.load(f)
+    with open("district_encoder.pkl", "rb") as f:
+        le_district = pickle.load(f)
+except FileNotFoundError:
+    st.error("❌ Model or encoders not found. Add .pkl files in project folder.")
+    st.stop()
 
-with open("state_encoder.pkl", "rb") as f:
-    le_state = pickle.load(f)
+# -------------------------
+# User input
+# -------------------------
+st.subheader("Enter Details for Prediction")
+state_input = st.selectbox("State/UT", le_state.classes_)
+district_input = st.selectbox("District", le_district.classes_)
+year_input = st.number_input("Year", min_value=2000, max_value=2030, value=2025)
+murder = st.number_input("Murder cases", min_value=0, value=0)
+attempt_murder = st.number_input("Attempt to Murder cases", min_value=0, value=0)
+rape = st.number_input("Rape cases", min_value=0, value=0)
+other_crimes = st.number_input("Other crimes", min_value=0, value=0)
 
-with open("district_encoder.pkl", "rb") as f:
-    le_district = pickle.load(f)
-
-# Load dataset for mapping
-data = pd.read_csv("women-crimedataset-India.csv")
-state_district_map = data.groupby('STATE/UT')['DISTRICT'].unique().to_dict()
-
-# Crime columns
-crime_columns = [
-    'MURDER', 'ATTEMPT TO MURDER', 'RAPE', 'CUSTODIAL RAPE', 'OTHER RAPE',
-    'KIDNAPPING & ABDUCTION', 'KIDNAPPING AND ABDUCTION OF WOMEN AND GIRLS',
-    'KIDNAPPING AND ABDUCTION OF OTHERS', 'DOWRY DEATHS',
-    'ASSAULT ON WOMEN WITH INTENT TO OUTRAGE HER MODESTY',
-    'INSULT TO MODESTY OF WOMEN', 'CRUELTY BY HUSBAND OR HIS RELATIVES',
-    'IMPORTATION OF GIRLS FROM FOREIGN COUNTRIES'
-]
-
-# Sidebar inputs
-st.sidebar.header("Input Parameters")
-state_list = list(le_state.classes_)
-selected_state = st.sidebar.selectbox("Select State", state_list)
-
-district_list = state_district_map[selected_state]
-selected_district = st.sidebar.selectbox("Select District", district_list, index=0)
-
-crime_inputs = {}
-for col in crime_columns:
-    crime_inputs[col] = st.sidebar.number_input(col, min_value=0, value=50, step=1)
-
-if st.sidebar.button("Predict Crime Level"):
-    state_encoded = le_state.transform([selected_state])[0]
-    district_encoded = le_district.transform([selected_district])[0]
-
-    input_data = pd.DataFrame([[state_encoded, district_encoded] + list(crime_inputs.values())],
-                              columns=['STATE', 'DISTRICT'] + crime_columns)
-
-    prediction = model.predict(input_data)[0]
-
-    st.subheader("Prediction Result")
-    st.success(f"✅ The predicted crime level is: **{prediction}**")
-
-    st.subheader("Crime Input Overview")
-    crime_df = pd.DataFrame.from_dict(crime_inputs, orient='index', columns=['Count'])
-    st.bar_chart(crime_df)
+# Predict button
+if st.button("Predict Crime Level"):
+    try:
+        state_encoded = le_state.transform([state_input])[0]
+        district_encoded = le_district.transform([district_input])[0]
+        input_df = pd.DataFrame([[state_encoded, district_encoded, murder, attempt_murder, rape, other_crimes]],
+                                columns=['STATE', 'DISTRICT', 'MURDER', 'ATTEMPT TO MURDER', 'RAPE', 'OTHER_CRIMES'])
+        prediction = model.predict(input_df)[0]
+        st.success(f"Predicted Crime Level: **{prediction}**")
+    except Exception as e:
+        st.error(f"Prediction error: {e}")
