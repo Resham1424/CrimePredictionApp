@@ -2,43 +2,44 @@ import streamlit as st
 import pandas as pd
 import pickle
 
-st.set_page_config(page_title="Crime Prediction", layout="wide")
-st.title("🔮 Crime Level Prediction")
-
-# -------------------------
-# Load model & encoders
-# -------------------------
-try:
+# -------------------- Load Model --------------------
+@st.cache_resource
+def load_model():
     with open("crime_prediction_model.pkl", "rb") as f:
-        model = pickle.load(f)
-    with open("state_encoder.pkl", "rb") as f:
-        le_state = pickle.load(f)
-    with open("district_encoder.pkl", "rb") as f:
-        le_district = pickle.load(f)
-except FileNotFoundError:
-    st.error("❌ Model or encoders not found. Add .pkl files in project folder.")
-    st.stop()
+        return pickle.load(f)
 
-# -------------------------
-# User input
-# -------------------------
-st.subheader("Enter Details for Prediction")
-state_input = st.selectbox("State/UT", le_state.classes_)
-district_input = st.selectbox("District", le_district.classes_)
-year_input = st.number_input("Year", min_value=2000, max_value=2030, value=2025)
-murder = st.number_input("Murder cases", min_value=0, value=0)
-attempt_murder = st.number_input("Attempt to Murder cases", min_value=0, value=0)
-rape = st.number_input("Rape cases", min_value=0, value=0)
-other_crimes = st.number_input("Other crimes", min_value=0, value=0)
+model = load_model()
 
-# Predict button
+# -------------------- Define Features --------------------
+feature_columns = [
+    'MURDER',
+    'ATTEMPT TO MURDER',
+    'RAPE',
+    'CUSTODIAL RAPE',
+    'OTHER RAPE',
+    'KIDNAPPING & ABDUCTION',
+    'KIDNAPPING AND ABDUCTION OF WOMEN AND GIRLS',
+    'KIDNAPPING AND ABDUCTION OF OTHERS',
+    'DOWRY DEATHS',
+    'ASSAULT ON WOMEN WITH INTENT TO OUTRAGE HER MODESTY',
+    'INSULT TO MODESTY OF WOMEN',
+    'CRUELTY BY HUSBAND OR HIS RELATIVES',
+    'IMPORTATION OF GIRLS FROM FOREIGN COUNTRIES'
+]
+
+# -------------------- Streamlit UI --------------------
+st.title("🔮 Crime Prediction App")
+st.write("Enter crime statistics to predict crime level.")
+
+# Collect user inputs
+inputs = {}
+for col in feature_columns:
+    inputs[col] = st.number_input(f"{col}", min_value=0, value=0, step=1)
+
+# Convert inputs into DataFrame (with same feature order)
+input_df = pd.DataFrame([inputs], columns=feature_columns)
+
+# -------------------- Prediction --------------------
 if st.button("Predict Crime Level"):
-    try:
-        state_encoded = le_state.transform([state_input])[0]
-        district_encoded = le_district.transform([district_input])[0]
-        input_df = pd.DataFrame([[state_encoded, district_encoded, murder, attempt_murder, rape, other_crimes]],
-                                columns=['STATE', 'DISTRICT', 'MURDER', 'ATTEMPT TO MURDER', 'RAPE', 'OTHER_CRIMES'])
-        prediction = model.predict(input_df)[0]
-        st.success(f"Predicted Crime Level: **{prediction}**")
-    except Exception as e:
-        st.error(f"Prediction error: {e}")
+    prediction = model.predict(input_df)[0]
+    st.success(f"✅ Predicted Crime Level: **{prediction}**")
