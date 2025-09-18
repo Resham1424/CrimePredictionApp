@@ -1,28 +1,14 @@
 # train_model.py
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-import pickle
+import joblib
 
-# -----------------------------
-# 1. Load Dataset
-# -----------------------------
+# ---------------- Step 1: Load the dataset ----------------
 data = pd.read_csv("women-crimedataset-India.csv")
-print("Columns in dataset:", data.columns)
 
-# -----------------------------
-# 2. Encode Categorical Columns
-# -----------------------------
-le_state = LabelEncoder()
-le_district = LabelEncoder()
-
-data['STATE'] = le_state.fit_transform(data['STATE/UT'])
-data['DISTRICT'] = le_district.fit_transform(data['DISTRICT'])
-
-# -----------------------------
-# 3. Convert Crime Columns to Numeric
-# -----------------------------
+# ---------------- Step 2: Define the crime columns ----------------
 crime_columns = [
     'MURDER', 'ATTEMPT TO MURDER', 'RAPE', 'CUSTODIAL RAPE', 'OTHER RAPE',
     'KIDNAPPING & ABDUCTION', 'KIDNAPPING AND ABDUCTION OF WOMEN AND GIRLS',
@@ -32,54 +18,47 @@ crime_columns = [
     'IMPORTATION OF GIRLS FROM FOREIGN COUNTRIES'
 ]
 
+# ---------------- Step 3: Convert crime columns to numeric ----------------
 for col in crime_columns:
-    data[col] = pd.to_numeric(data[col], errors='coerce').fillna(0)
+    data[col] = pd.to_numeric(data[col], errors='coerce')  # Convert non-numeric to NaN
 
-# -----------------------------
-# 4. Create Overall Crime Level
-# -----------------------------
-data['TOTAL_CRIME'] = data[crime_columns].sum(axis=1)
+# Replace NaN with 0
+data[crime_columns] = data[crime_columns].fillna(0)
 
+# ---------------- Step 4: Create TOTAL_CRIMES ----------------
+data['TOTAL_CRIMES'] = data[crime_columns].sum(axis=1)
+
+# ---------------- Step 5: Encode target variable ----------------
+# Example: create 'Crime_Level' based on TOTAL_CRIMES
 def crime_level(total):
-    if total > 1000:
-        return 'High'
-    elif total > 300:
-        return 'Medium'
+    if total <= 50:
+        return "Low"
+    elif total <= 200:
+        return "Medium"
     else:
-        return 'Low'
+        return "High"
 
-data['CRIME_LEVEL'] = data['TOTAL_CRIME'].apply(crime_level)
+data['Crime_Level'] = data['TOTAL_CRIMES'].apply(crime_level)
 
-# -----------------------------
-# 5. Features and Target
-# -----------------------------
-feature_columns = ['STATE', 'DISTRICT'] + crime_columns
-X = data[feature_columns]
-y = data['CRIME_LEVEL']
+# ---------------- Step 6: Prepare features and target ----------------
+X = data[crime_columns]  # Only numeric crime features
+y = data['Crime_Level']
 
-# -----------------------------
-# 6. Train-Test Split
-# -----------------------------
+# Encode target labels
+le = LabelEncoder()
+y_encoded = le.fit_transform(y)
+
+# ---------------- Step 7: Split dataset ----------------
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+    X, y_encoded, test_size=0.2, random_state=42
 )
 
-# -----------------------------
-# 7. Train Random Forest Model
-# -----------------------------
+# ---------------- Step 8: Train RandomForestClassifier ----------------
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 
-# -----------------------------
-# 8. Save Model and Encoders
-# -----------------------------
-with open("crime_prediction_model.pkl", "wb") as f:
-    pickle.dump(model, f)
+# ---------------- Step 9: Save the trained model and label encoder ----------------
+joblib.dump(model, "model.pkl")
+joblib.dump(le, "label_encoder.pkl")
 
-with open("state_encoder.pkl", "wb") as f:
-    pickle.dump(le_state, f)
-
-with open("district_encoder.pkl", "wb") as f:
-    pickle.dump(le_district, f)
-
-print("Model and encoders saved successfully!")
+print("✅ Model trained and saved successfully!")
